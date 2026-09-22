@@ -59,7 +59,18 @@ header{display:flex; align-items:center; justify-content:space-between; margin-b
 .badge{display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.06em;
   padding:4px 10px; border-radius:999px; background:var(--accent); color:var(--on-accent)}
 .badge.flat{background:var(--line); color:var(--dim)}
-.auto{margin-left:7px; font-size:11.5px; color:var(--dim); letter-spacing:.04em}
+.badge.new{background:var(--accent); color:var(--on-accent)}
+.badge.old{background:var(--gold); color:var(--on-accent)}
+/* 되풀이 주제 안내 — 막지 않고 언제 보냈는지만 말해 준다 */
+.again{margin:12px 0 0; font-size:12.5px; color:var(--gold); word-break:keep-all}
+.again b{color:var(--gold); font-weight:700}
+/* 맛보기 옆의 신규/기존 꼬리표 */
+.mark{display:inline-block; margin-left:4px; font-size:10.5px; font-weight:700; letter-spacing:.02em;
+  padding:1px 5px; border-radius:5px; background:var(--line); color:var(--dim); vertical-align:1px}
+.mark.new{background:var(--accent); color:var(--on-accent)}
+/* 이름표가 둘 붙는 날이 있어 줄이 넘친다 — 단어 중간에서 끊기지 않게 한 덩이로 옮긴다 */
+.auto{margin-left:7px; font-size:11.5px; color:var(--dim); letter-spacing:.04em;
+  white-space:nowrap; display:inline-block}
 .topic{
   margin:14px 0 0; font-size:30px; line-height:1.25; font-weight:700; letter-spacing:-.02em;
   word-break:keep-all;
@@ -89,7 +100,7 @@ button.go:disabled{opacity:.5; cursor:default; transform:none}
 .sub{margin:10px 2px 0; font-size:13px; color:var(--dim)}
 footer{margin-top:24px; font-size:12.5px; color:var(--dim); line-height:1.8}
 
-/* 보낸 기록 — 한 번 나온 주제는 다시 안 나온다. 그 목록이 이것이다 */
+/* 보낸 기록 — 언제 무엇을 보냈나. 같은 주제가 다시 뜨면 또 오르므로 줄이 늘 수 있다 */
 .log-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px}
 .log-head h2{margin:0; font-size:17px; font-weight:700; letter-spacing:-.01em}
 .log-head span{font-size:12.5px; color:var(--dim)}
@@ -353,9 +364,12 @@ function 그리기() {
       ${c.근거없음
         ? '<span class="badge flat">오늘은 걸린 주제가 없습니다</span>'
         : `<span class="badge">오늘 뉴스에 ${c.실시간 + c.헤드라인}번</span>`}
+      ${c.보낸적 ? '<span class="badge old">↩ 전에 보낸 주제</span>' : '<span class="badge new">🆕 처음</span>'}
       ${고른주제 === 자동 ? '<span class="auto">누를 때 다시 고릅니다</span>' : ''}
       <h1 class="topic">${esc(c.주제어)}</h1>
-      <p class="count">등록된 민간자격 <b>${c.건수.toLocaleString()}건</b> 중 ${예고.보낼자격수}개</p>
+      <p class="count">등록된 민간자격 <b>${c.건수.toLocaleString()}건</b> 중 ${예고.보낼자격수}개${
+        c.보낸적 ? ' — <b>아직 안 보여드린 것부터</b>' : ''}</p>
+      ${되풀이(c)}
       ${근거(c)}
       ${맛보기(c)}
     </div>
@@ -363,7 +377,7 @@ function 그리기() {
     <p class="status" id="st"></p>
     ${기록()}
     <footer>
-      ${esc(쉼)} · 누적 ${예고.회차}회 · 남은 주제 ${예고.남은주제}개<br>
+      ${esc(쉼)} · 누적 ${예고.회차}회 · 처음 보내는 주제 ${예고.남은주제}개 남음<br>
       등록부 ${예고.자격수.toLocaleString()}건 · 사전 ${예고.사전만든날.slice(0, 10)} 기준
       ${물려받음 ? `<br>${esc(물려받음)} 앱의 토큰을 물려받았습니다` : ''}
     </footer>`;
@@ -383,9 +397,26 @@ function 근거(c) {
     `<p><span class="src">${esc(g.곳)}</span>${esc(g.글)}</p>`).join('')}</div>`;
 }
 
+/** 전에 보낸 주제면 언제였는지. 주제는 다시 뜨니 막지 않고, 대신 언제였는지 말해 준다. */
+function 되풀이(c) {
+  if (!c.보낸적) return '';
+  const 날들 = c.보낸적.날들.slice(-3).map(d => 날짜(d)).join(' · ');
+  const 더 = c.보낸적.횟수 > 3 ? ` (모두 ${c.보낸적.횟수}번)` : '';
+  return `<p class="again">↩ <b>${esc(날들)}</b>${더}에 보내드린 주제입니다</p>`;
+}
+
 function 맛보기(c) {
   if (!c.미리보기?.length) return '';
-  return `<p class="peek">예를 들면 ${c.미리보기.map(n => `<b>${esc(n)}</b>`).join(' · ')}</p>`;
+  // 미리보기는 예전엔 이름 문자열이었다. 지금은 {자격명, 보낸날} 인데,
+  // 예고 파일이 갱신되기 전 한 번은 옛 모양이 올 수 있어 둘 다 받아 준다.
+  const 줄 = c.미리보기.map(x => {
+    const 이름 = typeof x === 'string' ? x : x.자격명;
+    const 보낸날 = typeof x === 'string' ? null : x.보낸날;
+    return 보낸날
+      ? `<b>${esc(이름)}</b><span class="mark">↩ ${esc(보낸날.slice(5))}</span>`
+      : `<b>${esc(이름)}</b><span class="mark new">신규</span>`;
+  }).join(' · ');
+  return `<p class="peek">예를 들면 ${줄}</p>`;
 }
 
 // ── 보낸 기록 ──────────────────────────────────────────
@@ -398,7 +429,7 @@ function 기록() {
     <div class="card">
       <div class="log-head">
         <h2>보낸 주제</h2>
-        <span>${hs.length}개 · 다시 안 나옵니다</span>
+        <span>${hs.length}회 · 주제 ${new Set(hs.map(h => h.주제어)).size}가지</span>
       </div>
       ${hs.slice(0, 30).map((h, i) => `
         <div class="row">
