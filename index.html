@@ -173,7 +173,8 @@ let 고른주제 = 자동;
 let 펼친날 = null;        // 보낸 기록에서 누른 줄 (한 번 더 누르면 닫힌다)
 
 class GhError extends Error {
-  constructor(msg, 토큰문제 = false) { super(msg); this.토큰문제 = 토큰문제; }
+  // status 를 함께 들고 다니는 이유는 물려받기(아래)가 403 과 422 를 갈라야 해서다
+  constructor(msg, 토큰문제 = false, status = 0) { super(msg); this.토큰문제 = 토큰문제; this.status = status; }
 }
 
 async function gh(path, opts = {}) {
@@ -195,7 +196,7 @@ async function gh(path, opts = {}) {
   if (res.status === 401) throw new GhError('토큰이 만료됐거나 잘못됐습니다. 새로 발급해 주세요.', true);
   if (res.status === 403) throw new GhError('토큰 권한이 모자랍니다 — Actions를 “Read and write”로 주셔야 합니다.', true);
   if (res.status === 404) throw new GhError('저장소를 찾지 못했습니다. 토큰이 daily-cert 저장소를 포함하는지 확인해 주세요.', true);
-  if (!res.ok) throw new GhError(`GitHub 응답 ${res.status} ${res.statusText}`);
+  if (!res.ok) throw new GhError(`GitHub 응답 ${res.status} ${res.statusText}`, false, res.status);
   return res;
 }
 const 읽기 = async path =>
@@ -229,7 +230,33 @@ function 형제토큰() {
   return 것들.sort((a, b) => (a.키 === 'dailypill.token') - (b.키 === 'dailypill.token'));
 }
 
-/** 형제 토큰을 하나씩 시험해 본다. 되는 걸 찾으면 우리 키로도 저장하고 true. */
+/**
+ * 이 토큰으로 **발송을 시킬 수 있는지** 떠본다. 아무것도 돌지 않는다.
+ *
+ * ⚠️ **읽을 수 있는지로만 확인하면 안 된다.** 이 앱이 하는 일은 워크플로를 돌리는
+ *    것이고 그건 `Actions: Read and write` 가 필요하다. 읽기만 되는 토큰을
+ *    물려받으면 화면은 멀쩡히 떠 놓고 버튼을 눌렀을 때 403 으로 죽는다 —
+ *    토큰을 넣은 사람은 다 된 줄 알고 있다가 발송하는 순간 알게 된다.
+ *
+ * 있을 수 없는 ref 로 디스패치를 던진다. `..` 가 든 가지 이름은 Git 규칙상 만들 수
+ * 없으니 실수로 발송될 일이 없고, 거절되는 **이유**만 갈린다.
+ *   403 → Actions 쓰기 권한이 없다
+ *   422 → 권한은 있고 ref 가 없어서 거절됐다   ← 원하는 답
+ */
+async function 보낼수있나() {
+  try {
+    await gh(`/actions/workflows/${WORKFLOW}/dispatches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: 'refs/heads/..permission-check..' }),
+    });
+    return true;                      // 여기까지 오면 권한은 있는 것이다
+  } catch (e) {
+    return e.status === 422;          // 그 밖(403·401·404·네트워크)은 못 보낸다
+  }
+}
+
+/** 형제 토큰을 하나씩 시험해 본다. 읽기와 발송이 **둘 다** 되는 걸 찾으면 저장하고 true. */
 async function 물려받기() {
   const 형제 = 형제토큰();
   if (!형제.length) return false;
@@ -238,9 +265,12 @@ async function 물려받기() {
     token = f.값;
     try {
       await 읽기('data/next.json');
-      localStorage.setItem(KEY, token);
-      물려받음 = f.앱;
-      return true;
+      if (await 보낼수있나()) {
+        localStorage.setItem(KEY, token);
+        물려받음 = f.앱;
+        return true;
+      }
+      token = '';                     // 읽기는 되는데 발송은 못 한다 — 다음 걸 본다
     } catch (e) {
       token = '';
       // 토큰 문제(401·403·404)는 '이 토큰은 여기를 못 본다' 는 뜻이라 다음 걸 시험한다.
@@ -262,8 +292,10 @@ function 토큰화면(안내 = '') {
       ${형제.length ? `
       <p class="sub" style="margin:0 0 18px; padding:12px 14px; background:var(--bg); border-radius:11px">
         <b>새로 발급하지 않아도 됩니다.</b> 이 기기에 ${형제.map(f => `<b>${esc(f.앱)}</b>`).join(' · ')} 토큰이 있습니다.
-        그 토큰의 <b>Repository access</b> 에 <code>daily-cert</code> 를 더하고 (권한은 이미 같습니다)
-        이 페이지를 새로고침하면 알아서 집어 씁니다 — 토큰 문자열은 바뀌지 않습니다.<br>
+        그 토큰의 <b>Repository access</b> 에 <code>daily-cert</code> 를 더하고,
+        권한이 <b>Actions = Read and write</b> 인지 확인한 뒤 이 페이지를 새로고침하면
+        알아서 집어 씁니다 — 토큰 문자열은 바뀌지 않습니다. (읽기만 되는 토큰은
+        버튼을 눌렀을 때 죽으므로 물려받지 않습니다.)<br>
         <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">→ 가진 토큰 고치러 가기</a>
       </p>` : ''}
       <label for="tk">GitHub 토큰${형제.length ? ' (새로 만들려면)' : ''}</label>
