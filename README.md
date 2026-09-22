@@ -20,7 +20,7 @@
 
 **데일리북·데일리영어 앱을 쓰고 있다면 새로 발급하지 않아도 됩니다.** 그 토큰은 권한 모양이
 여기와 똑같습니다 (Actions = Read and write, Contents = Read-only). [가진 토큰](https://github.com/settings/personal-access-tokens)의
-Repository access 에  만 더하고 이 페이지를 새로고침하면 됩니다 —
+Repository access 에 `daily-cert` 만 더하고 이 페이지를 새로고침하면 됩니다 —
 버튼 앱들이 같은 주소에 얹혀 있어 브라우저 저장소를 공유하므로, 이 페이지가 형제 앱의
 토큰을 알아서 집어 씁니다. 파인그레인드 PAT 은 저장소 목록을 고쳐도 문자열이 바뀌지 않고,
 그 문자열은 발급할 때 한 번만 보여 줘서 손으로 옮겨 적을 수도 없습니다.
