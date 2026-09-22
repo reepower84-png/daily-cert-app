@@ -1,0 +1,14 @@
+{
+  "name": "데일리자격증",
+  "short_name": "데일리자격증",
+  "description": "오늘 뜬 주제로 실제 등록된 민간자격을 찾아 보내는 버튼",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f1ea",
+  "theme_color": "#1f4d42",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
