@@ -380,7 +380,7 @@ async function 보내기() {
       await gh(`/actions/workflows/${WORKFLOW}/dispatches`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ ref: REF, inputs: { 주제어: 고른주제 } }),
+        body: JSON.stringify({ ref: REF, inputs: { topic: 고른주제 } }),
       });
       break;                                           // 접수됨
     } catch (e) {
